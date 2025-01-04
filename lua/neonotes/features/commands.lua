@@ -3,7 +3,7 @@ local generator = require("neonotes.features.generator")
 local M = {}
 
 function M.create_commands()
-	vim.api.nvim_create_user_command("Neonotes", function(params)
+	vim.api.nvim_create_user_command("Smn", function(params)
 		M.command_parser(params.fargs)
 	end, {
 		nargs = "*",
@@ -11,33 +11,21 @@ function M.create_commands()
 	})
 end
 
--- For convenience, we’ll parse subcommands like:
--- :Neonotes add-todo description... -t tag -p status
--- :Neonotes toggle-todo <identifier>
-
 function M.command_parser(args)
-	-- `args` is a table of strings from the command line
-	local subcommand = args[1]
+	local tag = args[1]
+	local command = args[2]
 
-	if subcommand == "add-todo" then
-		-- call add_todo function
-		-- e.g., parse the rest of args
-		M.add_checkbox(args, "## ", "TODOs")
-	elseif subcommand == "toggle" then
-		-- call toggle_todo function
+	if tag == "toggle" then
 		M.toggle_checkbox(args, "Item")
-	elseif subcommand == "add-blocker" then
-		M.add_checkbox(args, "## ", "Blockers")
+	elseif command == "cb" then
+		M.add_checkbox(args, "## ", tag)
 	else
-		-- fallback or error message
 		print("Neonotes: unknown subcommand")
 	end
 end
 
 function M.add_checkbox(args, matcher, tagName)
-	-- Example: args = { "add-todo", "Finish", "writing", "docs", "-t", "docs", "-p", "high" }
-
-	-- Remove the first element "add-todo"
+	table.remove(args, 1)
 	table.remove(args, 1)
 
 	local description = {}
@@ -53,7 +41,6 @@ function M.add_checkbox(args, matcher, tagName)
 			priority = args[i + 1]
 			i = i + 2
 		else
-			-- Accumulate this piece of the description
 			table.insert(description, args[i])
 			i = i + 1
 		end
@@ -64,25 +51,21 @@ function M.add_checkbox(args, matcher, tagName)
 	local file_path = generator.get_or_create_daily_file()
 	local lines = {}
 
-	-- Read the file lines
 	for line in io.lines(file_path) do
 		table.insert(lines, line)
 	end
 
-	-- Insert a new line under #TODOs
 	for idx, line in ipairs(lines) do
-		if line:match("^" .. matcher .. tagName) then
-			-- Insert after #TODOs
+		if string.lower(line):match("^" .. matcher .. string.lower(tagName)) then
 			table.insert(
 				lines,
-				idx + 1,
+				idx + 2,
 				string.format("- [ ] %s (tag: %s, priority: %s)", descriptionStr, tag, priority)
 			)
 			break
 		end
 	end
 
-	-- Write lines back
 	local fp = io.open(file_path, "w")
 
 	if fp == nil then
@@ -99,9 +82,7 @@ function M.add_checkbox(args, matcher, tagName)
 end
 
 function M.toggle_checkbox(args, tagName)
-	-- Example usage: :Neonotes toggle-todo "docs"
-	-- or            :Neonotes toggle-todo "writing docs"
-	table.remove(args, 1) -- remove "toggle-todo"
+	table.remove(args, 1)
 	local query = table.concat(args, " ")
 
 	local file_path = generator.get_or_create_daily_file()
@@ -112,10 +93,7 @@ function M.toggle_checkbox(args, tagName)
 
 	-- We'll do a naive search for the query in each line.
 	for idx, line in ipairs(lines) do
-		-- We only care if line is a TODO line:
-		-- e.g., "- [ ] Finish writing docs (tag: docs, status: open)"
 		if line:match("^%- %[.-%]") and line:find(query) then
-			-- Toggle [ ] <-> [x] for the checkbox
 			if line:find("%- %[%s%]") then
 				line = line:gsub("%- %[%s%]", "- [x]")
 				print(string.format("Neonotes: marked %s as complete -> %s", tagName, query))
@@ -129,7 +107,6 @@ function M.toggle_checkbox(args, tagName)
 		end
 	end
 
-	-- Write lines back
 	local fp = io.open(file_path, "w")
 
 	if fp == nil then

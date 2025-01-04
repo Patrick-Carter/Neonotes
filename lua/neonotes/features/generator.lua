@@ -11,9 +11,8 @@ local function parse_index(str)
 end
 
 local function strip_prefix(str)
-	-- This pattern looks for: start of string -> __<one-or-more digits>__ -> optional space -> (the rest)
 	local stripped = str:match("^__%d+__%s*(.*)")
-	return stripped or str -- fallback to original if pattern not found
+	return stripped or str
 end
 
 local function get_daily_file_path(base_dir, date_table, generate_path)
@@ -25,26 +24,22 @@ local function get_daily_file_path(base_dir, date_table, generate_path)
 	local month = string.format("%02d", date_table.month)
 	local day = string.format("%02d", date_table.day)
 
-	-- Construct directory: base_dir/year/month
 	local dir_path = table.concat({ base_dir, year, month }, "/")
 
 	-- Ensure directory exists
 	if generate_path == true then
-		vim.fn.mkdir(dir_path, "p") -- "p" = create parents as needed
+		vim.fn.mkdir(dir_path, "p")
 	end
 
-	-- Build final file path
 	local file_path = dir_path .. "/" .. day .. ".md"
 	return file_path
 end
 
--- Creates/opens today's file with #TODOs and #Progress if it doesn't exist
 function M.get_or_create_daily_file()
 	local date_table = os.date("*t") -- e.g. {year=2025, month=1, day=2, ...}
 	local file_path = get_daily_file_path(M.notes_dir, date_table)
 
 	if vim.fn.filereadable(file_path) == 0 then
-		-- The file doesn’t exist, so create it with the basic sections
 		local fp = io.open(file_path, "w")
 		if fp then
 			fp:write(
@@ -66,19 +61,15 @@ function M.handle_daily_rollover(date_override)
 
 	local max_days_back = M.max_days_back
 
-	-- store the discovered path (if any) and a flag
 	local found_path = nil
 	local rewind_date = nil
 
 	for days_back = 1, max_days_back do
-		-- calculate the date/time for X days ago
 		local rewind_sec = os.time(current_date) - (24 * 60 * 60 * days_back)
 		rewind_date = os.date("*t", rewind_sec)
 
-		-- get the path for that day
 		local rewind_path = get_daily_file_path(M.notes_dir, rewind_date, false)
 
-		-- check if that file exists
 		if vim.fn.filereadable(rewind_path) == 1 then
 			found_path = rewind_path
 			break
@@ -94,10 +85,8 @@ function M.handle_daily_rollover(date_override)
 	local yesterday_path = get_daily_file_path(M.notes_dir, rewind_date, false)
 
 	if vim.fn.filereadable(yesterday_path) == 1 and vim.fn.filereadable(today_path) == 0 then
-		-- Create today's file
 		M.get_or_create_daily_file()
 
-		-- We read yesterday's TODO lines
 		local yesterday_lines = {}
 		for line in io.lines(yesterday_path) do
 			table.insert(yesterday_lines, line)
@@ -145,7 +134,6 @@ function M.handle_daily_rollover(date_override)
 		end)
 
 		for _, k in ipairs(keys) do
-			-- Ensure the string ends with a single newline
 			local line = strip_prefix(k)
 			if not line:match("\n$") then
 				line = line .. "\n"
@@ -153,20 +141,17 @@ function M.handle_daily_rollover(date_override)
 			table.insert(today_lines, line)
 
 			for _, linej in ipairs(other_items[k]) do
-				-- Ensure each line ends with a single newline
 				if not linej:match("\n$") then
 					linej = linej .. "\n"
 				end
 				table.insert(today_lines, linej)
 			end
 
-			-- Add an extra newline between sections, if necessary
 			if today_lines[#today_lines] ~= "\n" then
 				table.insert(today_lines, "\n")
 			end
 		end
 
-		-- Write the updated lines to today's file
 		local fp = io.open(today_path, "w")
 
 		if fp == nil then
